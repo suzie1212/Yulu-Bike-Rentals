@@ -1,0 +1,265 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.dash{padding:1.2rem 0;font-family:var(--font-sans)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.4rem}
+.kpi{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:13px 15px}
+.kpi-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.kpi-value{font-size:21px;font-weight:500;color:var(--color-text-primary)}
+.kpi-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:13px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-bottom:13px}
+.card{background:var(--color-background-primary);border:.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.2rem}
+.card-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:.8rem}
+.filter-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:1.2rem}
+.flabel{font-size:12px;color:var(--color-text-secondary)}
+.pill{font-size:12px;padding:4px 11px;border:.5px solid var(--color-border-secondary);border-radius:20px;cursor:pointer;background:transparent;color:var(--color-text-secondary);transition:all .12s}
+.pill.active{background:var(--color-background-info);color:var(--color-text-info);border-color:var(--color-border-info)}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px}
+.bar-key{width:58px;color:var(--color-text-secondary);flex-shrink:0;text-align:right;font-size:11px}
+.bar-bg{flex:1;background:var(--color-background-secondary);border-radius:3px;height:8px}
+.bar-fill{height:8px;border-radius:3px;transition:width .35s}
+.bar-val{width:42px;color:var(--color-text-primary);font-weight:500;flex-shrink:0;font-size:11px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500}
+</style>
+
+<div class="dash">
+  <h2 style="font-size:16px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px">Yulu Bike Sharing — demand analysis</h2>
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1.1rem">10,886 hourly records · 2011–2012</p>
+
+  <div class="filter-row">
+    <span class="flabel">Season:</span>
+    <button class="pill active" onclick="sf('season','All')">All</button>
+    <button class="pill" onclick="sf('season',1)">Spring</button>
+    <button class="pill" onclick="sf('season',2)">Summer</button>
+    <button class="pill" onclick="sf('season',3)">Fall</button>
+    <button class="pill" onclick="sf('season',4)">Winter</button>
+    <span class="flabel" style="margin-left:6px">Day type:</span>
+    <button class="pill active" onclick="sf('day','All')">All</button>
+    <button class="pill" onclick="sf('day','working')">Working</button>
+    <button class="pill" onclick="sf('day','weekend')">Weekend/Holiday</button>
+  </div>
+
+  <div class="kpi-grid" id="kpis"></div>
+
+  <div class="row2">
+    <div class="card">
+      <div class="card-title">Avg rides by hour — casual vs registered</div>
+      <div style="position:relative;height:210px"><canvas id="hourChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Monthly demand trend</div>
+      <div style="position:relative;height:210px"><canvas id="monthChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <div class="card-title">Avg rides by weekday</div>
+      <div style="position:relative;height:200px"><canvas id="weekChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Weather impact on demand</div>
+      <div style="position:relative;height:200px"><canvas id="weatherChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row3">
+    <div class="card">
+      <div class="card-title">Season performance</div>
+      <div style="position:relative;height:180px"><canvas id="seasonChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Temperature vs avg rides</div>
+      <div id="tempBars" style="padding-top:4px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Humidity vs avg rides</div>
+      <div id="humBars" style="padding-top:4px"></div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <div class="card-title">Casual vs Registered — rider share</div>
+      <div style="position:relative;height:180px"><canvas id="riderChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Year-over-year growth</div>
+      <div style="position:relative;height:180px"><canvas id="yoyChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const TEAL='#1D9E75', BLUE='#378ADD', CORAL='#D85A30', AMBER='#BA7517', PURPLE='#7F77DD';
+
+// All pre-aggregated data
+const D = {
+  hour:{
+    casual:[10.3,6.5,4.8,2.7,1.3,1.5,4.1,10.9,21.5,31.0,46.1,60.1,68.8,74.1,76.6,76.0,75.1,75.4,61.4,49.1,36.7,28.6,22.6,15.5],
+    registered:[44.8,27.3,18.1,9.1,5.1,18.3,72.1,202.2,341.2,190.8,129.0,150.6,187.7,183.7,166.9,178.3,241.3,393.3,369.5,266.2,191.8,144.8,111.0,74.0],
+    count:[55.1,33.9,22.9,11.8,6.4,19.8,76.3,213.1,362.8,221.8,175.1,210.7,256.5,257.8,243.4,254.3,316.4,468.8,430.9,315.3,228.5,173.4,133.6,89.5]
+  },
+  // season: 1=Spring,2=Summer,3=Fall,4=Winter
+  season:{
+    casual:[15.5,47.4,52.2,28.6],
+    registered:[100.9,167.8,182.2,170.4],
+    count:[116.3,215.3,234.4,199.0]
+  },
+  // working vs weekend for hour (approximate scaling)
+  hourWorking:{
+    casual:[7.9,5.2,4.0,2.3,1.1,1.4,4.5,13.3,26.8,20.5,16.6,20.3,26.9,25.5,22.7,24.5,37.7,66.6,58.8,40.0,29.4,22.1,17.4,12.0],
+    registered:[47.0,28.5,18.9,9.5,5.3,19.5,76.8,214.3,363.5,202.4,136.7,159.8,198.9,194.6,176.9,188.9,255.9,416.0,391.3,282.1,203.6,153.5,117.6,78.4]
+  },
+  hourWeekend:{
+    casual:[14.8,9.0,6.7,3.7,1.8,1.9,3.3,7.1,13.0,47.2,84.1,110.2,124.3,134.0,138.1,136.0,127.4,76.6,57.4,60.3,49.9,40.5,32.1,22.3],
+    registered:[40.9,24.8,16.4,8.3,4.7,16.3,64.3,180.0,304.4,170.3,115.1,134.3,167.7,164.0,149.0,159.2,215.4,350.8,329.7,237.6,171.4,129.2,99.1,66.1]
+  },
+  month:{
+    count:[90.4,110.0,148.2,184.2,219.5,242.0,235.3,234.1,233.8,227.7,193.7,175.6],
+    casual:[8.2,10.3,27.8,43.8,45.3,53.3,55.9,50.3,50.5,41.8,27.8,16.1],
+    registered:[82.2,99.7,120.4,140.4,174.2,188.8,179.5,183.8,183.3,185.9,165.8,159.5]
+  },
+  weekday:{
+    labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    casual:[23.0,22.5,24.0,31.0,29.8,63.6,57.1],
+    registered:[166.7,165.9,173.3,166.8,160.5,133.0,123.8],
+    count:[189.7,188.4,197.3,197.8,190.4,196.7,180.8]
+  },
+  weather:{
+    labels:['Clear','Mist/Cloudy','Light Rain/Snow','Heavy Rain'],
+    count:[205.2,179.0,118.8,164.0],
+    txn:[7192,2834,859,1]
+  },
+  temp:{labels:['0–10°C','10–20°C','20–30°C','30–40°C','40°C+'],count:[73.2,150.5,223.4,334.3,294.0]},
+  hum:{labels:['0–20%','20–40%','40–60%','60–80%','80–100%'],count:[240.1,290.6,220.5,171.3,109.8]},
+  year:{labels:['2011','2012'],count:[144.2,238.6],total:[1243103,1942373]},
+  overall:{total:2085476,casual:392135,registered:1693341,peakHour:17}
+};
+
+// Season scaling factors (relative to overall avg 191.6)
+const SEASON_SCALE={All:1, 1:116.3/191.6, 2:215.3/191.6, 3:234.4/191.6, 4:199.0/191.6};
+const DAY_SCALE={All:1, working:193.0/191.6, weekend:188.5/191.6};
+
+const state={season:'All', day:'All'};
+let charts={};
+
+function sf(k,v){
+  state[k]=v;
+  document.querySelectorAll('.pill').forEach(b=>{
+    const t=b.getAttribute('onclick')||'';
+    if(t.includes(`'${k}'`)) b.classList.toggle('active',t.includes(`'${v}'`)||t.includes(`,${v})`));
+  });
+  render();
+}
+
+function getScale(){
+  return SEASON_SCALE[state.season]*DAY_SCALE[state.day];
+}
+
+function scaleArr(arr){ return arr.map(v=>+(v*getScale()).toFixed(1)); }
+
+function getHourData(){
+  if(state.day==='working') return {casual:D.hourWorking.casual, reg:D.hourWorking.registered};
+  if(state.day==='weekend') return {casual:D.hourWeekend.casual, reg:D.hourWeekend.registered};
+  return {casual:D.hour.casual, reg:D.hour.registered};
+}
+
+function mk(id,cfg){
+  if(charts[id]) charts[id].destroy();
+  const c=document.getElementById(id);
+  if(c) charts[id]=new Chart(c,cfg);
+}
+
+function render(){
+  const sc=getScale();
+
+  // KPIs
+  const totalRides=Math.round(D.overall.total*sc);
+  const casRatio=Math.round(D.overall.casual/D.overall.total*100);
+  const regRatio=100-casRatio;
+  const peakAvg=Math.round(D.hour.count[17]*sc);
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total rides</div><div class="kpi-value">${(totalRides/1e6).toFixed(2)}M</div><div class="kpi-sub">2011–2012</div></div>
+    <div class="kpi"><div class="kpi-label">Avg rides/hr</div><div class="kpi-value">${Math.round(191.6*sc)}</div><div class="kpi-sub">across all hours</div></div>
+    <div class="kpi"><div class="kpi-label">Peak hour avg</div><div class="kpi-value">${peakAvg}</div><div class="kpi-sub">5 PM (17:00)</div></div>
+    <div class="kpi"><div class="kpi-label">Rider split</div><div class="kpi-value">${regRatio}% reg</div><div class="kpi-sub">${casRatio}% casual</div></div>
+  `;
+
+  // Hour chart
+  const hd=getHourData();
+  const hrs=Array.from({length:24},(_,i)=>i);
+  mk('hourChart',{type:'line',data:{labels:hrs,datasets:[
+    {label:'Registered',data:hd.reg.map(v=>+(v*sc).toFixed(1)),borderColor:BLUE,backgroundColor:BLUE+'22',fill:true,tension:.4,pointRadius:2,borderWidth:2},
+    {label:'Casual',data:hd.casual.map(v=>+(v*sc).toFixed(1)),borderColor:TEAL,backgroundColor:TEAL+'22',fill:true,tension:.4,pointRadius:2,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,labels:{font:{size:11},boxWidth:10}}},
+    scales:{x:{ticks:{font:{size:10},callback:(_,i)=>i%3===0?i+'h':''}},y:{ticks:{font:{size:10}}}}}});
+
+  // Month chart
+  mk('monthChart',{type:'bar',data:{
+    labels:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    datasets:[
+      {label:'Registered',data:D.month.registered.map(v=>+(v*sc).toFixed(1)),backgroundColor:BLUE,stack:'s'},
+      {label:'Casual',data:D.month.casual.map(v=>+(v*sc).toFixed(1)),backgroundColor:TEAL,stack:'s'}
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{font:{size:11},boxWidth:10}}},
+      scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
+
+  // Weekday chart
+  mk('weekChart',{type:'bar',data:{labels:D.weekday.labels,datasets:[
+    {label:'Registered',data:D.weekday.registered.map(v=>+(v*sc).toFixed(1)),backgroundColor:BLUE,stack:'s'},
+    {label:'Casual',data:D.weekday.casual.map(v=>+(v*sc).toFixed(1)),backgroundColor:TEAL,stack:'s'}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,labels:{font:{size:11},boxWidth:10}}},
+    scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,ticks:{font:{size:10}}}}}});
+
+  // Weather chart
+  mk('weatherChart',{type:'bar',data:{
+    labels:D.weather.labels,
+    datasets:[{label:'Avg rides',data:D.weather.count.map(v=>+(v*sc).toFixed(1)),backgroundColor:[TEAL,BLUE,AMBER,CORAL],borderRadius:3}]
+  },options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:ctx=>`(${D.weather.txn[ctx.dataIndex].toLocaleString()} records)`}}},
+    scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}}}});
+
+  // Season chart
+  const sLabels=['Spring','Summer','Fall','Winter'];
+  mk('seasonChart',{type:'doughnut',data:{labels:sLabels,datasets:[{
+    data:D.season.count.map(v=>+(v*sc).toFixed(1)),
+    backgroundColor:[TEAL,BLUE,CORAL,AMBER],borderWidth:0
+  }]},options:{responsive:true,maintainAspectRatio:false,cutout:'50%',
+    plugins:{legend:{display:true,position:'right',labels:{font:{size:11},boxWidth:10,padding:6}}}}});
+
+  // Temp bars
+  const tmx=Math.max(...D.temp.count)*sc;
+  document.getElementById('tempBars').innerHTML=D.temp.labels.map((l,i)=>{
+    const v=+(D.temp.count[i]*sc).toFixed(0);
+    return `<div class="bar-row"><span class="bar-key">${l}</span><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/tmx*100)}%;background:${CORAL}"></div></div><span class="bar-val">${v}</span></div>`;
+  }).join('');
+
+  // Humidity bars
+  const hmx=Math.max(...D.hum.count)*sc;
+  document.getElementById('humBars').innerHTML=D.hum.labels.map((l,i)=>{
+    const v=+(D.hum.count[i]*sc).toFixed(0);
+    return `<div class="bar-row"><span class="bar-key">${l}</span><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/hmx*100)}%;background:${PURPLE}"></div></div><span class="bar-val">${v}</span></div>`;
+  }).join('');
+
+  // Rider share doughnut
+  mk('riderChart',{type:'doughnut',data:{
+    labels:['Registered','Casual'],
+    datasets:[{data:[D.overall.registered,D.overall.casual],backgroundColor:[BLUE,TEAL],borderWidth:0}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+    plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:10,padding:8}}}}});
+
+  // YoY
+  mk('yoyChart',{type:'bar',data:{labels:['2011','2012'],datasets:[
+    {label:'Avg rides/hr',data:[144.2,238.6].map(v=>+(v*sc).toFixed(1)),backgroundColor:[BLUE,CORAL],borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:10}},min:0}}}});
+}
+
+render();
+</script>
